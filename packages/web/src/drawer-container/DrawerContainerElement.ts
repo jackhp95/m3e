@@ -1,4 +1,4 @@
-import { CSSResultGroup, html, LitElement, PropertyValues } from "lit";
+import { CSSResultGroup, html, LitElement, PropertyDeclaration, PropertyValues } from "lit";
 import { property, state } from "lit/decorators.js";
 
 import {
@@ -186,6 +186,20 @@ export class M3eDrawerContainerElement extends SupportsDirectionality(
   }
 
   /** @inheritdoc */
+  override requestUpdate(name?: PropertyKey, oldValue?: unknown, options?: PropertyDeclaration): void {
+    super.requestUpdate(name, oldValue, options);
+    if (name === "start" || name === "end" || name === "_startMode" || name === "_endMode") {
+      this.#syncInert();
+    }
+  }
+
+  /** @inheritdoc */
+  protected override updated(changedProperties: PropertyValues): void {
+    super.updated(changedProperties);
+    this.#syncInert();
+  }
+
+  /** @inheritdoc */
   protected override firstUpdated(_changedProperties: PropertyValues): void {
     super.firstUpdated(_changedProperties);
     if (this.startMode === "side" && this.endMode === "side") {
@@ -202,10 +216,7 @@ export class M3eDrawerContainerElement extends SupportsDirectionality(
           <slot name="start" @slotchange=${this.#handleStartSlotChange}></slot>
         </m3e-focus-trap>
       </div>
-      <div
-        class="content"
-        .inert="${(this._startMode !== "side" || this._endMode !== "side") && (this.start || this.end)}"
-      >
+      <div class="content">
         <slot></slot>
       </div>
       <div class="scrim" @click=${this.#handleScrimClick}></div>
@@ -215,6 +226,18 @@ export class M3eDrawerContainerElement extends SupportsDirectionality(
         </m3e-focus-trap>
       </div>
     </div>`;
+  }
+
+  /**
+   * Applied synchronously, rather than on the next render, so that focus moved to the content
+   * in the same task that closes a drawer is not dropped.
+   * @private
+   */
+  #syncInert(): void {
+    const content = this.shadowRoot?.querySelector<HTMLElement>(".content");
+    if (content) {
+      content.inert = (this._startMode !== "side" || this._endMode !== "side") && (this.start || this.end);
+    }
   }
 
   /** @private */
