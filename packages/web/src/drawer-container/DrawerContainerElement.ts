@@ -59,7 +59,7 @@ import { DrawerContainerStyle } from "./styles";
  * @attr start-mode - The behavior mode of the start drawer.
  * @attr start-divider - Whether to show a divider between the start drawer and content for `side` mode.
  *
- * @fires change - Dispatched when the state of the start or end drawers change.
+ * @fires change - Dispatched when the state of the start or end drawers change, including when Escape closes an `over` or `push` drawer.
  *
  * @cssprop --m3e-drawer-container-color - The background color of the drawer container.
  * @cssprop --m3e-drawer-container-elevation - The elevation level of the drawer container.
@@ -132,11 +132,13 @@ export class M3eDrawerContainerElement extends SupportsDirectionality(
   override connectedCallback(): void {
     super.connectedCallback();
     addCustomState(this, "--no-animate");
+    this.addEventListener("keydown", this.#captureKeyDown, { capture: true });
   }
 
   /** @inheritdoc */
   override disconnectedCallback(): void {
     super.disconnectedCallback();
+    this.removeEventListener("keydown", this.#captureKeyDown, { capture: true });
 
     this.#breakpointUnobserve?.();
     this.#clearMode();
@@ -196,7 +198,7 @@ export class M3eDrawerContainerElement extends SupportsDirectionality(
 
   /** @inheritdoc */
   protected override render(): unknown {
-    return html`<div class="base">
+    return html`<div class="base" @keydown=${this.#handleKeyDown}>
       <div class="start">
         <m3e-focus-trap ?disabled="${!this.start || this._startMode === "side" || this.#disableStartFocusTrap}">
           <slot name="start" @slotchange=${this.#handleStartSlotChange}></slot>
@@ -233,6 +235,31 @@ export class M3eDrawerContainerElement extends SupportsDirectionality(
     if (this._endMode !== "side") {
       this.end = false;
     }
+    this.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+
+  /** @private */
+  #escapeFromPopover = false;
+
+  /** @private */
+  readonly #captureKeyDown = (e: KeyboardEvent) => {
+    this.#escapeFromPopover = e
+      .composedPath()
+      .some((node) => node instanceof HTMLElement && node.matches(":popover-open"));
+  };
+
+  /** @private */
+  #handleKeyDown(e: KeyboardEvent): void {
+    if (e.defaultPrevented || e.key !== "Escape" || e.shiftKey || e.ctrlKey || e.altKey || e.metaKey) return;
+    if (this.#escapeFromPopover) return;
+
+    const closeStart = this.start && this._startMode !== "side";
+    const closeEnd = this.end && this._endMode !== "side";
+    if (!closeStart && !closeEnd) return;
+
+    e.preventDefault();
+    if (closeStart) this.start = false;
+    if (closeEnd) this.end = false;
     this.dispatchEvent(new Event("change", { bubbles: true }));
   }
 
