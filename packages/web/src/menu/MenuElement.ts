@@ -24,6 +24,7 @@ import { Direction, M3eDirectionality } from "@m3e/web/core/bidi";
 import { M3eMenuItemElement } from "./MenuItemElement";
 import { isMenuPositionX, MenuPositionX, MenuPositionY } from "./MenuPosition";
 import { MenuItemElementBase } from "./MenuItemElementBase";
+import { isEditableTarget } from "./isEditableTarget";
 import { isMenuVariant, MenuVariant } from "./MenuVariant";
 
 /**
@@ -589,6 +590,13 @@ export class M3eMenuElement extends SuppressInitialAnimation(AttachInternals(Rol
       case "Escape":
         if (!e.shiftKey && !e.ctrlKey) {
           this.hide(true);
+        }
+        break;
+
+      case "Home":
+      case "End":
+        if (!isEditableTarget(e)) {
+          this.#listManager.onKeyDown(e);
         }
         break;
 
