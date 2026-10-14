@@ -405,6 +405,8 @@ export class M3eDialogElement extends AttachInternals(LitElement) {
 
     if (focusable) {
       focusWhenReady(focusable);
+    } else if (!this.matches(":focus-within")) {
+      this.shadowRoot?.querySelector("m3e-focus-trap")?.focusFirst();
     }
 
     this.dispatchEvent(new Event("opened"));
