@@ -6,6 +6,7 @@ import {
   AttachInternals,
   customElement,
   deleteCustomState,
+  focusWhenReady,
   hasAssignedNodes,
   hasCustomState,
   ReconnectedCallback,
@@ -16,6 +17,7 @@ import {
 import { Breakpoint, M3eBreakpointObserver } from "@m3e/web/core/layout";
 import { SupportsDirectionality } from "@m3e/web/core/bidi";
 import "@m3e/web/core/a11y";
+import type { M3eFocusTrapElement } from "@m3e/web/core/a11y";
 
 import { DrawerMode, isDrawerMode } from "./DrawerMode";
 
@@ -84,6 +86,8 @@ export class M3eDrawerContainerElement extends SupportsDirectionality(
   /** @private */ #breakpointUnobserve?: () => void;
   /** @private */ #disableStartFocusTrap = false;
   /** @private */ #disableEndFocusTrap = false;
+  /** @private */ #modalOpen = false;
+  /** @private */ #invoker: HTMLElement | null = null;
 
   /** @private */
   #resizeController = new ResizeController(this, {
@@ -173,6 +177,8 @@ export class M3eDrawerContainerElement extends SupportsDirectionality(
         this.start = false;
       }
     }
+
+    this.#trackModalFocus(changedProperties);
   }
 
   /** @inheritdoc */
@@ -215,6 +221,51 @@ export class M3eDrawerContainerElement extends SupportsDirectionality(
         </m3e-focus-trap>
       </div>
     </div>`;
+  }
+
+  /** @private */
+  #isModalOpen(): boolean {
+    return (this.start && this._startMode !== "side") || (this.end && this._endMode !== "side");
+  }
+
+  /** @private */
+  #trackModalFocus(changedProperties: PropertyValues<this>): void {
+    const modalOpen = this.#isModalOpen();
+    const toggled = this.hasUpdated && (changedProperties.has("start") || changedProperties.has("end"));
+    const changed = toggled && modalOpen !== this.#modalOpen;
+    this.#modalOpen = modalOpen;
+
+    if (changed && modalOpen) {
+      this.#invoker = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      this.updateComplete.then(() => this.#focusDrawer());
+    } else if (changed) {
+      this.updateComplete.then(() => this.#restoreFocus());
+    }
+  }
+
+  /** @private */
+  #focusDrawer(): void {
+    const slot = this.start && this._startMode !== "side" ? "start" : "end";
+    const autofocus = this.querySelector<HTMLElement>(`:scope > [slot="${slot}"] [autofocus]`);
+
+    if (autofocus) {
+      focusWhenReady(autofocus);
+    } else {
+      this.shadowRoot?.querySelector<M3eFocusTrapElement>(`.${slot} m3e-focus-trap`)?.focusFirst();
+    }
+  }
+
+  /** @private */
+  #restoreFocus(): void {
+    const invoker = this.#invoker;
+    this.#invoker = null;
+
+    const active = document.activeElement;
+    const drawers = this.querySelectorAll(':scope > [slot="start"], :scope > [slot="end"]');
+    const stranded = !active || active === document.body || Array.from(drawers).some((x) => x.contains(active));
+    if (invoker?.isConnected && stranded) {
+      invoker.focus();
+    }
   }
 
   /** @private */
