@@ -1,7 +1,7 @@
 import { css, CSSResultGroup, html, LitElement } from "lit";
 import { query } from "lit/decorators.js";
 
-import { customElement, Disabled } from "@m3e/web/core";
+import { customElement, Disabled, focusWhenReady } from "@m3e/web/core";
 
 import { M3eInteractivityChecker } from "./InteractivityChecker";
 
@@ -37,6 +37,25 @@ export class M3eFocusTrapElement extends Disabled(LitElement) {
       @focus=${this.#onFocus}
     ></div>`;
     return html`${trap}<slot></slot>${trap}`;
+  }
+
+  /**
+   * Asynchronously focuses the first focusable element within the trap, waiting for one to become focusable.
+   * @param {number} [timeout=200] The maximum amount of time to wait for a focusable element.
+   * @returns {Promise<boolean>} A `Promise` that resolves to whether an element was focused.
+   */
+  async focusFirst(timeout: number = 200): Promise<boolean> {
+    const start = performance.now();
+    do {
+      const [first] = this.#getFirstAndLastFocusableChild();
+      if (first) {
+        return focusWhenReady(first, timeout);
+      }
+
+      await new Promise(requestAnimationFrame);
+    } while (this.isConnected && performance.now() - start <= timeout);
+
+    return false;
   }
 
   /** @private */
@@ -90,7 +109,7 @@ export class M3eFocusTrapElement extends Disabled(LitElement) {
     parents: readonly Element[],
     callback: (element: Element, parents: readonly Element[]) => void,
   ): void {
-    parents = [...parents, root];
+    parents = root === this ? parents : [...parents, root];
 
     for (const node of root.childNodes) {
       if (node.nodeType !== Node.ELEMENT_NODE) continue;
