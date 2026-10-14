@@ -55,6 +55,15 @@ export function isLinkButtonMixin(value: unknown): value is LinkButtonMixin {
 
 const _clickHandler = Symbol("_clickHandler");
 
+function isPseudoLink(node: unknown): boolean {
+  if (!(node instanceof HTMLAnchorElement)) {
+    return false;
+  }
+
+  const root = node.getRootNode();
+  return root instanceof ShadowRoot && isLinkButtonMixin(root.host);
+}
+
 /**
  * Mixin to augment an element with behavior that supports functioning as a link.
  * @template T The type of the base class.
@@ -73,30 +82,18 @@ export function LinkButton<T extends Constructor<LitElement>>(
         e.stopPropagation();
       }
 
-      // Capture the originating element before yielding, as the composed path is only available during dispatch.
-      const origin = e.composedPath()[0];
+      // A pseudo link is activated natively after dispatch, so any listener can cancel it and modifier keys apply.
+      if (isPseudoLink(e.composedPath()[0])) {
+        return;
+      }
 
-      await new Promise<void>((resolve) => resolve());
+      // Microtasks run between listeners for trusted clicks, so wait a task for dispatch to complete.
+      await new Promise<void>((resolve) => setTimeout(resolve));
       if (e.defaultPrevented) {
         return;
       }
 
       if (this.href) {
-        e.stopImmediatePropagation();
-
-        // Clicks with modifier keys (e.g. open in new tab/window, download) are left to the pseudo link's
-        // native activation behavior, as not all browsers honor modifier keys for synthetic clicks.
-        if (
-          origin instanceof HTMLAnchorElement &&
-          origin.getRootNode() === this.shadowRoot &&
-          e instanceof MouseEvent &&
-          (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey)
-        ) {
-          return;
-        }
-
-        e.preventDefault();
-
         const link = document.createElement("a");
         link.href = this.href;
         link.rel = this.rel;
