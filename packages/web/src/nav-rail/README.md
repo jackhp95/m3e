@@ -63,8 +63,10 @@ This section details the attributes, slots, events and CSS custom properties ava
 | `--m3e-nav-rail-top-space`                  | Top block padding for the nav rail.                |
 | `--m3e-nav-rail-bottom-space`               | Bottom block padding for the nav rail.             |
 | `--m3e-nav-rail-compact-width`              | Width of the nav rail in compact mode.             |
+| `--m3e-nav-rail-default-compact-width`      | Default compact width (`96px`); readable, e.g. as a floor for `--m3e-nav-rail-compact-width`. |
 | `--m3e-nav-rail-inline-padding`             | Inline padding for nav rail.                       |
 | `--m3e-nav-rail-expanded-width`             | Width of the nav rail in expanded mode.            |
+| `--m3e-nav-rail-default-expanded-width`     | Default expanded width (`220px`); readable, e.g. as a floor for `--m3e-nav-rail-expanded-width`. |
 | `--m3e-nav-rail-expanded-item-height`       | Height of nav items in expanded mode.              |
 | `--m3e-nav-rail-button-item-space`          | Space below icon buttons and FABs.                 |
 | `--m3e-nav-rail-icon-button-inset`          | Inset for icon buttons.                            |

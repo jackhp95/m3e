@@ -53,8 +53,10 @@ import { M3eNavBarElement, NavItemOrientation } from "@m3e/web/nav-bar";
  * @cssprop --m3e-nav-rail-top-space - Top block padding for the nav rail.
  * @cssprop --m3e-nav-rail-bottom-space - Bottom block padding for the nav rail.
  * @cssprop --m3e-nav-rail-compact-width - Width of the nav rail in compact mode.
+ * @cssprop --m3e-nav-rail-default-compact-width - Default width of the nav rail in compact mode; readable, e.g. as a floor for `--m3e-nav-rail-compact-width`.
  * @cssprop --m3e-nav-rail-inline-padding - Inline padding for nav rail.
  * @cssprop --m3e-nav-rail-expanded-width - Width of the nav rail in expanded mode.
+ * @cssprop --m3e-nav-rail-default-expanded-width - Default width of the nav rail in expanded mode; readable, e.g. as a floor for `--m3e-nav-rail-expanded-width`.
  * @cssprop --m3e-nav-rail-expanded-item-height - Height of nav items in expanded mode.
  * @cssprop --m3e-nav-rail-button-item-space - Space below icon buttons and FABs.
  * @cssprop --m3e-nav-rail-icon-button-inset - Inset for icon buttons.
@@ -83,6 +85,8 @@ export class M3eNavRailElement extends SuppressInitialAnimation(M3eNavBarElement
       display: block;
       overflow-x: hidden;
       overflow-y: auto;
+      --m3e-nav-rail-default-compact-width: 96px;
+      --m3e-nav-rail-default-expanded-width: 220px;
       scrollbar-width: ${DesignToken.scrollbar.thinWidth};
       scrollbar-color: ${DesignToken.scrollbar.color};
     }
@@ -104,17 +108,17 @@ export class M3eNavRailElement extends SuppressInitialAnimation(M3eNavBarElement
       padding-inline: var(--m3e-nav-rail-inline-padding, ${DesignToken.measurement.space250});
     }
     :host(:is(:state(--compact), :--compact)) {
-      width: var(--m3e-nav-rail-compact-width, 96px);
+      width: var(--m3e-nav-rail-compact-width, var(--m3e-nav-rail-default-compact-width));
     }
     :host(:is(:state(--compact), :--compact)) .base {
-      --_vertical-nav-item-width: var(--m3e-nav-rail-compact-width, 96px);
+      --_vertical-nav-item-width: var(--m3e-nav-rail-compact-width, var(--m3e-nav-rail-default-compact-width));
       --_vertical-nav-item-margin-inline: calc(
         0px - var(--m3e-nav-rail-inline-padding, ${DesignToken.measurement.space250})
       );
       --_vertical-nav-item-inset-start: calc(50% - calc(var(--m3e-vertical-nav-item-active-indicator-width, 56px)) / 2);
     }
     :host(:not(:is(:state(--compact), :--compact))) {
-      width: var(--m3e-nav-rail-expanded-width, 220px);
+      width: var(--m3e-nav-rail-expanded-width, var(--m3e-nav-rail-default-expanded-width));
     }
     :host(:not(:is(:state(--compact), :--compact))) {
       --m3e-horizontal-nav-item-active-indicator-height: var(--m3e-nav-rail-expanded-item-height, 56px);
