@@ -100,6 +100,10 @@ import { ButtonSizeStyle, ButtonStyle, ButtonVariantStyle } from "./styles";
  * @cssprop --m3e-button-selected-shape-round - Corner radius when selected (round), for all size variants.
  * @cssprop --m3e-button-selected-shape-square - Corner radius when selected (square), for all size variants.
  * @cssprop --m3e-button-shape-pressed-morph - Corner radius when pressed, for all size variants.
+ * @cssprop --m3e-button-start-start-shape - Overrides the start-start logical corner radius in all states.
+ * @cssprop --m3e-button-start-end-shape - Overrides the start-end logical corner radius in all states.
+ * @cssprop --m3e-button-end-start-shape - Overrides the end-start logical corner radius in all states.
+ * @cssprop --m3e-button-end-end-shape - Overrides the end-end logical corner radius in all states.
  * @cssprop --m3e-button-leading-space - Space before icon or label, for all size variants.
  * @cssprop --m3e-button-trailing-space - Space after icon or label, for all size variants.
  * @cssprop --m3e-button-icon-label-space - Space between icon and label, for all size variants.
@@ -604,6 +608,7 @@ export class M3eButtonElement extends KeyboardClick(
     this._base?.style.removeProperty("--_button-shape");
     this.style.removeProperty("--_button-width");
     this.style.removeProperty("--_adjacent-shrink");
+    this.style.removeProperty("--_pressed-growth");
     deleteCustomState(this, "--adjacent-pressed");
 
     this.removeEventListener("click", this.#clickHandler);
@@ -754,6 +759,12 @@ export class M3eButtonElement extends KeyboardClick(
           adjacentShrink /= 2;
         }
 
+        // As in Compose, a neighbor shrinks by at most its end padding (its compression limit), and the
+        // pressed button grows by what its neighbors give up.
+        const adjacent = [buttons[index - 1], buttons[index + 1]].filter((x) => x !== undefined);
+        adjacentShrink = Math.min(adjacentShrink, ...adjacent.map((x) => this.#compressionLimit(x)));
+        this.style.setProperty("--_pressed-growth", `${adjacentShrink * Math.max(1, adjacent.length)}px`);
+
         for (let i = 0; i < buttons.length; i++) {
           if (i == index - 1 || i == index + 1) {
             addCustomState(buttons[i], "--no-resize");
@@ -809,7 +820,17 @@ export class M3eButtonElement extends KeyboardClick(
       deleteCustomState(button, "--adjacent-pressed");
       deleteCustomState(button, "--no-resize");
       button.style.removeProperty("--_adjacent-shrink");
+      button.style.removeProperty("--_pressed-growth");
     }
+  }
+
+  /** @private */
+  #compressionLimit(button: HTMLElement): number {
+    // The end padding at rest: the current padding plus what an ongoing shrink has taken from it.
+    const wrapper = button.shadowRoot?.querySelector(".wrapper");
+    if (!wrapper) return Infinity;
+    const shrink = parseFloat(button.style.getPropertyValue("--_adjacent-shrink")) || 0;
+    return parseFloat(getComputedStyle(wrapper).paddingInlineEnd) + shrink / 2;
   }
 }
 

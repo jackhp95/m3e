@@ -1,6 +1,6 @@
 {
   "name": "@m3e/web",
-  "version": "2.10.0",
+  "version": "2.10.3",
   "description": "Platform-native Web Components for M3E",
   "author": "matraic <matraic@yahoo.com>",
   "license": "MIT",
@@ -63,6 +63,7 @@
     "split-button",
     "split-pane",
     "stepper",
+    "swipe-reveal",
     "switch",
     "tabs",
     "textarea-autosize",
@@ -323,6 +324,10 @@
       "types": "./dist/src/stepper/index.d.ts",
       "default": "./dist/stepper.js"
     },
+    "./swipe-reveal": {
+      "types": "./dist/src/swipe-reveal/index.d.ts",
+      "default": "./dist/swipe-reveal.js"
+    },
     "./switch": {
       "types": "./dist/src/switch/index.d.ts",
       "default": "./dist/switch.js"
@@ -368,6 +373,7 @@
     "build": "rollup -c",
     "cem": "cem analyze --config cem.config.mjs",
     "lint": "npx eslint ./src",
+    "test": "playwright test",
     "clean": "rimraf dist"
   },
   "dependencies": {
