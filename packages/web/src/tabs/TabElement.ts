@@ -9,9 +9,11 @@ import {
   Focusable,
   HtmlFor,
   KeyboardClick,
+  LinkButton,
   M3eFocusRingElement,
   M3eRippleElement,
   M3eStateLayerElement,
+  renderPseudoLink,
   Role,
   Selected,
 } from "@m3e/web/core";
@@ -47,8 +49,12 @@ import { addAriaReferencedId, removeAriaReferencedId, selectionManager } from "@
  * @slot icon - Renders an icon before the tab's label.
  *
  * @attr disabled - Whether the element is disabled.
+ * @attr download - Whether the `target` of the link button will be downloaded, optionally specifying the new name of the file.
  * @attr for - The identifier of the interactive control to which this element is attached.
+ * @attr href - The URL to which the link button points.
+ * @attr rel - The relationship between the `target` of the link button and the document.
  * @attr selected - Whether the element is selected.
+ * @attr target - The target of the link button.
  *
  * @fires beforeinput - Dispatched before the selected state changes.
  * @fires input - Dispatched when the selected state changes.
@@ -76,8 +82,8 @@ import { addAriaReferencedId, removeAriaReferencedId, selectionManager } from "@
  * @cssprop --m3e-tab-icon-size - Font size for slotted icon.
  */
 @customElement("m3e-tab")
-export class M3eTabElement extends Selected(
-  HtmlFor(KeyboardClick(Focusable(Disabled(AttachInternals(Role(LitElement, "tab"), true))))),
+export class M3eTabElement extends LinkButton(
+  Selected(HtmlFor(KeyboardClick(Focusable(Disabled(AttachInternals(Role(LitElement, "tab"), true)))))),
 ) {
   /** The styles of the element. */
   static override styles: CSSResultGroup = css`
@@ -111,6 +117,13 @@ export class M3eTabElement extends Selected(
       height: 100%;
       padding-inline-start: var(--m3e-tab-padding-start, ${DesignToken.measurement.space300});
       padding-inline-end: var(--m3e-tab-padding-end, ${DesignToken.measurement.space300});
+    }
+    a {
+      all: unset;
+      display: block;
+      position: absolute;
+      inset: 0;
+      z-index: 1;
     }
     .touch {
       position: absolute;
@@ -235,6 +248,7 @@ export class M3eTabElement extends Selected(
   /** @inheritdoc */
   protected override render(): unknown {
     return html`<div class="base">
+      ${this[renderPseudoLink]()}
       <m3e-state-layer class="state-layer" ?disabled="${this.disabled}"></m3e-state-layer>
       <m3e-focus-ring class="focus-ring" inward ?disabled="${this.disabled}"></m3e-focus-ring>
       <m3e-ripple class="ripple" ?disabled="${this.disabled}"></m3e-ripple>
@@ -252,7 +266,7 @@ export class M3eTabElement extends Selected(
       e.stopImmediatePropagation();
     }
 
-    if (e.defaultPrevented || this.selected) return;
+    if (e.defaultPrevented || this.selected || this.href) return;
 
     if (this.dispatchEvent(new Event("beforeinput", { bubbles: true, cancelable: true }))) {
       this.selected = true;

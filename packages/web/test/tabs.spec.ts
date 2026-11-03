@@ -203,4 +203,90 @@ test.describe("m3e-tabs", () => {
     await expect.poll(() => page.locator("m3e-tabs").evaluate((e) => (e as Tabs).tabs.length)).toBe(4);
     expect(await index(page)).toBe(0);
   });
+
+  test.describe("link tabs", () => {
+    const origin = "http://links.test";
+    const linkTabs = (tabAttrs: string[] = ["selected", "", ""]) => `
+      <m3e-tabs style="width: 400px">
+        <m3e-tab href="${origin}/videos" ${tabAttrs[0]}>Videos</m3e-tab>
+        <m3e-tab href="${origin}/photos" ${tabAttrs[1]}>Photos</m3e-tab>
+        <m3e-tab href="${origin}/audio" ${tabAttrs[2]}>Audio</m3e-tab>
+      </m3e-tabs>
+    `;
+    const modifier = process.platform === "darwin" ? "Meta" : "Control";
+
+    test.beforeEach(async ({ context }) => {
+      await context.route(`${origin}/**`, (route) => route.fulfill({ contentType: "text/html", body: "<p>page</p>" }));
+    });
+
+    test("stays a tab and exposes a link to the pointer", async ({ page, render }) => {
+      await render(linkTabs());
+
+      await expect(page.getByRole("tab")).toHaveCount(3);
+      await expect(page.getByRole("tab", { name: "Videos" })).toHaveAttribute("aria-selected", "true");
+      await expect(page.getByRole("tab", { name: "Photos" })).toHaveAttribute("aria-selected", "false");
+      await expect(page.locator("m3e-tab").nth(1).locator("a")).toHaveAttribute("href", `${origin}/photos`);
+    });
+
+    test("a plain click navigates the current tab", async ({ page, render }) => {
+      await render(linkTabs());
+
+      await Promise.all([page.waitForURL(`${origin}/photos`), page.getByRole("tab", { name: "Photos" }).click()]);
+    });
+
+    test("a modified click opens a new tab and leaves the page and selection alone", async ({
+      browserName,
+      context,
+      page,
+      render,
+    }) => {
+      test.skip(browserName !== "chromium", "Playwright does not surface modified-click popups outside Chromium.");
+      await render(linkTabs());
+
+      const [popup] = await Promise.all([
+        context.waitForEvent("page"),
+        page.getByRole("tab", { name: "Photos" }).click({ modifiers: [modifier] }),
+      ]);
+
+      await popup.waitForURL(`${origin}/photos`);
+      expect(page.url()).toBe("about:blank");
+      expect(await index(page)).toBe(0);
+    });
+
+    test("Enter navigates the current tab", async ({ page, render }) => {
+      await render(linkTabs());
+      await page.getByRole("tab", { name: "Videos" }).focus();
+      await page.keyboard.press("ArrowRight");
+
+      await Promise.all([page.waitForURL(`${origin}/photos`), page.keyboard.press("Enter")]);
+    });
+
+    test("clicking does not change the selected tab", async ({ page, render }) => {
+      await render(linkTabs().replaceAll(origin, "#"));
+
+      await page.getByRole("tab", { name: "Photos" }).click();
+
+      await expect.poll(() => page.url()).toBe("about:blank#/photos");
+      expect(await index(page)).toBe(0);
+      await expect(page.getByRole("tab", { name: "Videos" })).toHaveAttribute("aria-selected", "true");
+    });
+
+    test("a disabled link tab does not render a link", async ({ page, render }) => {
+      await render(linkTabs(["selected", "disabled", ""]));
+
+      await expect(page.locator("m3e-tab").nth(1).locator("a")).toHaveCount(0);
+      await page.getByRole("tab", { name: "Photos" }).dispatchEvent("click");
+      expect(page.url()).toBe("about:blank");
+    });
+
+    test("a tab without an href still selects on click", async ({ page, render }) => {
+      await render(tabs("", ["selected", "", ""]));
+
+      await expect(page.locator("m3e-tab a")).toHaveCount(0);
+      await page.getByRole("tab", { name: "Photos" }).click();
+
+      expect(await index(page)).toBe(1);
+      await expect(page.getByRole("tab", { name: "Photos" })).toHaveAttribute("aria-selected", "true");
+    });
+  });
 });
