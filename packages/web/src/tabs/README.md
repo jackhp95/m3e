@@ -71,6 +71,16 @@ Showcase: Disabling. Import `@m3e/web/tabs`. Also import `@m3e/web/icon`. Load a
 </m3e-tabs>
 ```
 
+Showcase: Links. Import `@m3e/web/tabs`. A tab with an `href` is a link: it opens in a new tab or window, copies its address and honors modifier-clicks natively. Clicking a link tab does not select it, so set `selected` on the tab for the current page.
+
+```html
+<m3e-tabs>
+  <m3e-tab selected href="/videos">Video</m3e-tab>
+  <m3e-tab href="/photos">Photos</m3e-tab>
+  <!-- Additional content omitted for brevity -->
+</m3e-tabs>
+```
+
 Showcase: Density. Import `@m3e/web/tabs`. Apply the required styling for the illustrated classes in your application.
 
 ```html
@@ -138,11 +148,15 @@ This section details the attributes, slots and CSS custom properties available f
 
 #### ⚙️ Attributes
 
-| Attribute  | Type      | Default | Description                                                                  |
-| ---------- | --------- | ------- | ---------------------------------------------------------------------------- |
-| `disabled` | `boolean` | `false` | Whether the element is disabled.                                             |
-| `for`      | `string`  |         | The identifier of the interactive control to which this element is attached. |
-| `selected` | `boolean` | `false` | Whether the element is selected.                                             |
+| Attribute  | Type      | Default | Description                                                                                          |
+| ---------- | --------- | ------- | ---------------------------------------------------------------------------------------------------- |
+| `disabled` | `boolean` | `false` | Whether the element is disabled.                                                                     |
+| `download` | `string`  |         | Whether the `target` of the link button will be downloaded, optionally specifying the new file name. |
+| `for`      | `string`  |         | The identifier of the interactive control to which this element is attached.                         |
+| `href`     | `string`  |         | The URL to which the link button points.                                                             |
+| `rel`      | `string`  |         | The relationship between the `target` of the link button and the document.                           |
+| `selected` | `boolean` | `false` | Whether the element is selected.                                                                     |
+| `target`   | `string`  |         | The target of the link button.                                                                       |
 
 #### 🔔 Events
 
