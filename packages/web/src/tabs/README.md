@@ -27,6 +27,12 @@ The following example illustrates using the `m3e-tabs`, `m3e-tab`, and `m3e-tab-
 </m3e-tabs>
 ```
 
+A tab can show a count or status with the `badge` slot.
+
+```html
+<m3e-tab for="requests">Connection requests<m3e-badge slot="badge">3</m3e-badge></m3e-tab>
+```
+
 ## 📖 API Reference
 
 ### 🗂️ m3e-tabs
@@ -100,6 +106,7 @@ This section details the attributes, slots and CSS custom properties available f
 | ----------- | --------------------------------------- |
 | _(default)_ | Renders the label of the tab.           |
 | `icon`      | Renders an icon before the tab's label. |
+| `badge`     | Renders a badge after the tab's label.  |
 
 #### 🎛️ CSS Custom Properties
 
@@ -122,7 +129,7 @@ This section details the attributes, slots and CSS custom properties available f
 | `--m3e-tab-unselected-ripple-color`          | Ripple color for unselected tab.            |
 | `--m3e-tab-disabled-color`                   | Text color for disabled tab.                |
 | `--m3e-tab-disabled-opacity`                 | Text opacity for disabled tab.              |
-| `--m3e-tab-spacing`                          | Column gap between icon and label.          |
+| `--m3e-tab-spacing`                          | Gap between icon, label and badge.          |
 | `--m3e-tab-icon-size`                        | Font size for slotted icon.                 |
 
 ### 🗂️ m3e-tab-panel
