@@ -203,4 +203,110 @@ test.describe("m3e-tabs", () => {
     await expect.poll(() => page.locator("m3e-tabs").evaluate((e) => (e as Tabs).tabs.length)).toBe(4);
     expect(await index(page)).toBe(0);
   });
+  test.describe("badge slot", () => {
+    const withBadge = (variant: string) => `
+      <m3e-tabs variant="${variant}" style="width: 480px">
+        <m3e-tab for="b1" selected>Videos</m3e-tab>
+        <m3e-tab for="b2">Photos</m3e-tab>
+        <m3e-tab for="b3">Audio</m3e-tab>
+        <m3e-tab for="b4">Requests<m3e-badge slot="badge">3</m3e-badge></m3e-tab>
+        <m3e-tab-panel id="b1">Videos panel</m3e-tab-panel>
+        <m3e-tab-panel id="b2">Photos panel</m3e-tab-panel>
+        <m3e-tab-panel id="b3">Audio panel</m3e-tab-panel>
+        <m3e-tab-panel id="b4">Requests panel</m3e-tab-panel>
+      </m3e-tabs>
+    `;
+
+    const box = (page: Page, selector: string) =>
+      page.locator(selector).evaluate((el) => {
+        const r = el.getBoundingClientRect();
+        return { left: r.left, right: r.right, top: r.top, bottom: r.bottom };
+      });
+
+    const labelBaseline = (page: Page, name: string) =>
+      page.getByRole("tab", { name }).evaluate((tab) => {
+        const text = [...tab.childNodes].find((n) => n.nodeType === Node.TEXT_NODE)!;
+        const range = document.createRange();
+        range.selectNodeContents(text);
+        return range.getBoundingClientRect().bottom;
+      });
+
+    const indicator = (page: Page) =>
+      page.locator("m3e-tabs").evaluate((el) => {
+        const r = el.shadowRoot!.querySelector(".active-indicator")!.getBoundingClientRect();
+        return { left: r.left, right: r.right, width: r.width };
+      });
+
+    test("secondary: the badge follows the label within the tab and the active indicator", async ({ page, render }) => {
+      await render(withBadge("secondary"));
+      await page.getByRole("tab", { name: /Requests/ }).click();
+
+      const tab = await box(page, "m3e-tab:nth-of-type(4)");
+      const badge = await box(page, "m3e-badge");
+      const label = await box(page, "m3e-tab:nth-of-type(4) >> .label");
+      const bar = await indicator(page);
+
+      expect(badge.left).toBeGreaterThan(label.left);
+      expect(badge.right).toBeLessThanOrEqual(tab.right);
+      expect(badge.left).toBeGreaterThanOrEqual(bar.left);
+      expect(badge.right).toBeLessThanOrEqual(bar.right);
+    });
+
+    test("primary: the badge follows the label and the active indicator grows to include it", async ({
+      page,
+      render,
+    }) => {
+      await render(`
+        <m3e-tabs variant="primary" style="width: 480px">
+          <m3e-tab for="c1" selected>Requests</m3e-tab>
+          <m3e-tab for="c2">Requests<m3e-badge slot="badge">3</m3e-badge></m3e-tab>
+          <m3e-tab-panel id="c1">One</m3e-tab-panel>
+          <m3e-tab-panel id="c2">Two</m3e-tab-panel>
+        </m3e-tabs>
+      `);
+      const plain = await indicator(page);
+      await page.getByRole("tab", { name: /Requests 3/ }).click();
+      const badged = await indicator(page);
+      const badge = await box(page, "m3e-badge");
+      const tab = await box(page, "m3e-tab:nth-of-type(2)");
+      const label = await box(page, "m3e-tab:nth-of-type(2) >> .label");
+
+      expect(badge.right).toBeLessThanOrEqual(tab.right);
+      expect(badge.right).toBeCloseTo(label.right, 0);
+      const plainLabel = await box(page, "m3e-tab:nth-of-type(1) >> .label");
+      const growth = label.right - label.left - (plainLabel.right - plainLabel.left);
+      expect(growth).toBeGreaterThan(badge.right - badge.left);
+      expect(Math.abs(badged.width - plain.width - growth)).toBeLessThanOrEqual(1.5);
+    });
+
+    test("the label baseline matches a tab without a badge", async ({ page, render }) => {
+      await render(withBadge("secondary"));
+
+      const plain = await labelBaseline(page, "Audio");
+      const badged = await labelBaseline(page, "Requests 3");
+      expect(Math.abs(plain - badged)).toBeLessThanOrEqual(0.5);
+    });
+
+    test("the badge is part of the tab's accessible name", async ({ page, render }) => {
+      await render(withBadge("secondary"));
+
+      await expect(page.getByRole("tab", { name: "Requests 3" })).toHaveCount(1);
+    });
+
+    test("tabs without a badge keep their layout", async ({ page, render }) => {
+      const sizes = (html: string) =>
+        render(html).then(() =>
+          page.locator("m3e-tab").evaluateAll((els) =>
+            els.slice(0, 3).map((el) => {
+              const r = el.getBoundingClientRect();
+              return [r.x, r.y, r.width, r.height];
+            }),
+          ),
+        );
+
+      const plain = await sizes(tabs("", ["selected", "", ""]));
+      const withSlot = await sizes(withBadge("secondary").replace(' style="width: 480px"', ' style="width: 400px"'));
+      expect(withSlot).toEqual(plain);
+    });
+  });
 });

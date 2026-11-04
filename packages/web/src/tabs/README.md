@@ -71,6 +71,17 @@ Showcase: Disabling. Import `@m3e/web/tabs`. Also import `@m3e/web/icon`. Load a
 </m3e-tabs>
 ```
 
+Showcase: Badge. Import `@m3e/web/tabs`. Also import `@m3e/web/badge`.
+
+```html
+<m3e-tabs>
+  <m3e-tab selected for="requests">
+    Requests<m3e-badge slot="badge">3</m3e-badge>
+  </m3e-tab>
+  <!-- Additional content omitted for brevity -->
+</m3e-tabs>
+```
+
 Showcase: Density. Import `@m3e/web/tabs`. Apply the required styling for the illustrated classes in your application.
 
 ```html
@@ -158,6 +169,7 @@ This section details the attributes, slots and CSS custom properties available f
 | ----------- | --------------------------------------- |
 | _(default)_ | Renders the label of the tab.           |
 | `icon`      | Renders an icon before the tab's label. |
+| `badge`     | Renders a badge after the tab's label.  |
 
 #### 🎛️ CSS Custom Properties
 
@@ -180,7 +192,7 @@ This section details the attributes, slots and CSS custom properties available f
 | `--m3e-tab-unselected-ripple-color`          | Ripple color for unselected tab.            |
 | `--m3e-tab-disabled-color`                   | Text color for disabled tab.                |
 | `--m3e-tab-disabled-opacity`                 | Text opacity for disabled tab.              |
-| `--m3e-tab-spacing`                          | Column gap between icon and label.          |
+| `--m3e-tab-spacing`                          | Gap between icon, label and badge.          |
 | `--m3e-tab-icon-size`                        | Font size for slotted icon.                 |
 
 ### 🗂️ m3e-tab-panel

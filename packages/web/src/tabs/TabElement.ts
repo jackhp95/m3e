@@ -62,10 +62,23 @@ import { addAriaReferencedId, removeAriaReferencedId, selectionManager } from "@
  * </m3e-tabs>
  * ```
  *
+ * @example
+ * Showcase: Badge. Import `@m3e/web/tabs`. Also import `@m3e/web/badge`.
+ *
+ * ```html
+ * <m3e-tabs>
+ *   <m3e-tab selected for="requests">
+ *     Requests<m3e-badge slot="badge">3</m3e-badge>
+ *   </m3e-tab>
+ *   <!-- Additional content omitted for brevity -->
+ * </m3e-tabs>
+ * ```
+ *
  * @tag m3e-tab
  *
  * @slot - Renders the label of the tab.
  * @slot icon - Renders an icon before the tab's label.
+ * @slot badge - Renders a badge after the tab's label.
  *
  * @attr disabled - Whether the element is disabled.
  * @attr for - The identifier of the interactive control to which this element is attached.
@@ -93,7 +106,7 @@ import { addAriaReferencedId, removeAriaReferencedId, selectionManager } from "@
  * @cssprop --m3e-tab-unselected-ripple-color - Ripple color for unselected tab.
  * @cssprop --m3e-tab-disabled-color - Text color for disabled tab.
  * @cssprop --m3e-tab-disabled-opacity - Text opacity for disabled tab.
- * @cssprop --m3e-tab-spacing - Column gap between icon and label.
+ * @cssprop --m3e-tab-spacing - Gap between icon, label and badge.
  * @cssprop --m3e-tab-icon-size - Font size for slotted icon.
  */
 @customElement("m3e-tab")
@@ -186,6 +199,11 @@ export class M3eTabElement extends Selected(
       width: 1em;
       font-size: var(--m3e-tab-icon-size, 24px) !important;
     }
+    ::slotted([slot="badge"]) {
+      vertical-align: middle;
+      margin-block: -1em;
+      margin-inline-start: var(--m3e-tab-spacing, ${DesignToken.measurement.space100});
+    }
     @media (forced-colors: active) {
       :host([selected]:not(:disabled)) .base {
         color: ButtonText;
@@ -261,7 +279,7 @@ export class M3eTabElement extends Selected(
       <m3e-ripple class="ripple" ?disabled="${this.disabled}"></m3e-ripple>
       <div class="touch" aria-hidden="true"></div>
       <div class="wrapper">
-        <slot name="icon" aria-hidden="true"></slot><span class="label"><slot></slot></span>
+        <slot name="icon" aria-hidden="true"></slot><span class="label"><slot></slot><slot name="badge"></slot></span>
       </div>
     </div>`;
   }
