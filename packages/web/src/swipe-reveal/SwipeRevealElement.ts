@@ -36,6 +36,13 @@ import { SwipeRevealDismiss } from "./SwipeRevealDismiss";
 import { SwipeRevealElastic } from "./SwipeRevealElastic";
 import { SwipeRevealEventDetail } from "./SwipeRevealEventDetail";
 
+const SHAPE_GROWTH = "--m3e-swipe-reveal-shape-growth";
+const SNAP_DURATION = 150; // ms, matching the fast effects motion token
+const SNAP_ZONE = 0.1; // fraction of the content's width before the dismiss threshold at which the content snaps onto it
+
+type ActionMeasure = { width: number; assigned: Element[]; widths: Map<HTMLElement, number> };
+type SiblingSnapshot = { rect: DOMRect; margin: string; styles: Record<string, string> };
+
 type StaggerItem = {
   el: HTMLElement;
   distance: number;
@@ -125,6 +132,7 @@ const PROMOTED_STYLES = [
  * @cssprop --m3e-swipe-reveal-trailing-actions-gap - The gap between adjacent trailing actions.
  * @cssprop --m3e-swipe-reveal-trailing-actions-container-color - The background color of the trailing actions.
  * @cssprop --m3e-swipe-reveal-trailing-actions-container-shape - The corner shape of the trailing actions.
+ * @cssprop --m3e-swipe-reveal-shape-growth - Set while dragging on the active item and any staggered siblings, indicates the amount by which content may increase its border radius.
  */
 @customElement("m3e-swipe-reveal")
 export class M3eSwipeRevealElement extends SupportsDirectionality(AttachInternals(Role(LitElement, "none"))) {
@@ -223,10 +231,22 @@ export class M3eSwipeRevealElement extends SupportsDirectionality(AttachInternal
   /** @private */ #elastic?: SwipeRevealElastic;
   /** @private */ #dismissThreshold?: number;
   /** @private */ #armed = false;
+  /** @private */ #released = false;
+  /** @private */ #snapOffset = 0;
+  /** @private */ #snapStart = 0;
+  /** @private */ #snapFrame = 0;
+  /** @private */ #shown = 0;
+  /** @private */ #reached = false;
   /** @private */ #outermost = new Map<SwipeRevealSide, { el: HTMLElement; width: number }>();
 
   /** @private */ #squished = new Set<HTMLElement>();
   /** @private */ #actionWidths = new Map<SwipeRevealSide, number>();
+  /** @private */ #underlaps = new Map<SwipeRevealSide, number>();
+  /** @private */ #fallbackWidths = new Map<SwipeRevealSide, number>();
+  /** @private */ #measuredActions: Map<SwipeRevealSide, ActionMeasure> | null = null;
+  /** @private */ #startBounds: DOMRect | null = null;
+  /** @private */ #snapshots = new Map<HTMLElement, SiblingSnapshot>();
+  /** @private */ #contentWidth: number | undefined;
   /** @private */ #staggered: StaggerItem[] = [];
   /** @private */ #finishStagger?: () => void;
   /** @private */ #dragging = false;
@@ -336,7 +356,7 @@ export class M3eSwipeRevealElement extends SupportsDirectionality(AttachInternal
 
   /**
    * The fraction (0 to 1) of the item's width it must be dragged to dismiss it on release.
-   * @default 0.6
+   * @default 0.5
    */
   @property({ type: Number, attribute: "dismiss-threshold" })
   get dismissThreshold(): number {
@@ -444,7 +464,7 @@ export class M3eSwipeRevealElement extends SupportsDirectionality(AttachInternal
   /** @private */
   #dismissAt(side: SwipeRevealSide): number {
     // Dismissing must take a clearly deliberate drag, beyond the point where the actions are fully revealed.
-    return Math.max(this.dismissThreshold * (this._content?.offsetWidth ?? 0), this.#actionWidth(side) * 1.2);
+    return Math.max(this.dismissThreshold * this.#getContentWidth(), this.#actionWidth(side) * 1.2);
   }
 
   /** @private */
@@ -572,14 +592,14 @@ export class M3eSwipeRevealElement extends SupportsDirectionality(AttachInternal
 
   /** @inheritdoc */
   protected override render(): unknown {
-    return html`<div class="leading">
+    return html`<div class="leading" role="none">
         <slot name="leading" @slotchange=${this.#handleSlotChange}></slot>
       </div>
-      <div class="content" id="content" @click=${{ handleEvent: this.#handleContentClick, capture: true }}>
+      <div class="content" role="none" id="content" @click=${{ handleEvent: this.#handleContentClick, capture: true }}>
         <slot></slot>
       </div>
-      <div class="placeholder"></div>
-      <div class="trailing">
+      <div class="placeholder" aria-hidden="true"></div>
+      <div class="trailing" role="none">
         <slot name="trailing" @slotchange=${this.#handleSlotChange}></slot>
       </div>
       ${this.#renderTriggers()}`;
@@ -702,12 +722,37 @@ export class M3eSwipeRevealElement extends SupportsDirectionality(AttachInternal
     const placeholder = this._placeholder;
     if (!content || !placeholder || this.#isGone) return;
 
+    if (e.detail.phase === "start") {
+      // Drop cached measurements so each drag starts from current layout, before any drag writes.
+      this.#underlaps.clear();
+      this.#fallbackWidths.clear();
+      this.#contentWidth = undefined;
+    }
+
     const leadingWidth = this.#actionWidth("leading");
     const trailingWidth = this.#actionWidth("trailing");
 
     switch (e.detail.phase) {
       case "start":
+        // Measure everything the drag will need now, before any of its style writes, so no later read forces layout.
+        this.#startBounds = content.matches(":popover-open") ? null : content.getBoundingClientRect();
+        this.#measuredActions = this.#measureActions();
+        this.#snapshots.clear();
+        if (this.stagger > 0) {
+          const reveals = this.#resolveReveals();
+          const index = reveals.indexOf(this);
+          for (const step of [-1, 1]) {
+            for (let i = 1; index >= 0 && i <= this.staggerCount; i++) {
+              const sibling = reveals[index + step * i];
+              if (!sibling) break;
+              if (sibling._state === "covered" && !sibling.hasAttribute("popover")) {
+                this.#snapshots.set(sibling, this.#measure(sibling));
+              }
+            }
+          }
+        }
         this.#cancelSettle?.();
+        this.#released = false;
         this.#setDragging(false);
         // Resume from wherever the content visually is, including mid-transition.
         this.#base = this.#x = new DOMMatrixReadOnly(getComputedStyle(content).transform).m41;
@@ -715,6 +760,7 @@ export class M3eSwipeRevealElement extends SupportsDirectionality(AttachInternal
 
       case "update":
         {
+          const wasArmed = this.#armed;
           // Computed in logical space (positive reveals leading), then mapped back to physical.
           const raw = (this.#base + e.detail.translationX) * this.#dir;
           const x =
@@ -728,24 +774,29 @@ export class M3eSwipeRevealElement extends SupportsDirectionality(AttachInternal
                 : 0);
           this.#x = x;
 
+          const logicalX = x * this.#dir;
+          if (logicalX === 0 || !this.#canDismiss(logicalX > 0 ? "leading" : "trailing")) this.#setArmed(false);
+
           const begin = !this.#dragging;
           let displaced = 0;
 
           if (begin) {
             this.#setDragging(true);
+            this.#snapOffset = 0;
             // Must precede measuring: the other item's stagger may have promoted this element.
             displaced = this.#closeSiblings();
           }
 
           this.#promote(content, placeholder);
 
-          if (begin) {
+          if (begin && displaced !== 0) {
             // Start visually where the stagger left this element, then ease onto the pointer.
             content.style.transition = "none";
             content.style.translate = `${displaced}px`;
             void content.offsetWidth; // force reflow
           }
 
+          // The content's transform is not eased by CSS, so it stays in lockstep with the actions, whose growth tracks it.
           content.style.transition = `translate ${DesignToken.motion.spring.fastSpatial}`;
           content.style.translate = "0px";
 
@@ -753,21 +804,21 @@ export class M3eSwipeRevealElement extends SupportsDirectionality(AttachInternal
             this.#setState("revealing", x * this.#dir > 0 ? "leading" : "trailing");
             this.#lockActions();
             this.#beginStagger();
+          } else if (wasArmed !== this.#armed) {
+            // Ease the snap by animating the jump away, so content and actions animate together.
+            this.#snapOffset = this.#shown - x;
+            this.#snapStart = performance.now();
+            this.#animateSnap();
           }
 
-          content.style.transform = `translateX(${x}px)`;
-          this.#setProgress(x, false);
-          this.#applyStagger(x);
-
-          const logical = x * this.#dir;
-          const dragSide: SwipeRevealSide | null = logical > 0 ? "leading" : logical < 0 ? "trailing" : null;
-          this.#setArmed(!!dragSide && this.#canDismiss(dragSide) && Math.abs(x) >= this.#dismissAt(dragSide));
+          this.#renderDrag();
         }
         break;
 
       default: {
         if (!this.#dragging) break;
 
+        this.#stopSnap();
         this.#setDragging(false);
 
         // A swipe that is too slow to be recognized is cancelled, so position decides in that case.
@@ -791,7 +842,7 @@ export class M3eSwipeRevealElement extends SupportsDirectionality(AttachInternal
             const progress = Math.abs(x) / ((side === "leading" ? leadingWidth : trailingWidth) || Infinity);
             const threshold = this.#side === side ? 1 - this.threshold : this.threshold;
             target = progress >= threshold ? side : null;
-            dismiss = this.#canDismiss(side) && Math.abs(x) >= this.#dismissAt(side);
+            dismiss = this.#canDismiss(side) && this.#armed;
           }
         }
 
@@ -817,10 +868,36 @@ export class M3eSwipeRevealElement extends SupportsDirectionality(AttachInternal
 
   /** @private */
   #drag(distance: number, side: SwipeRevealSide, actionWidth: number): number {
-    // A dismissible side moves freely up to the full width, while others resist past the actions' width.
-    return this.#canDismiss(side)
-      ? Math.min(distance, this._content?.offsetWidth ?? distance)
-      : this.#rubberBand(distance, actionWidth);
+    if (!this.#canDismiss(side)) {
+      return this.#rubberBand(distance, actionWidth);
+    }
+
+    // The snap zone [zone, at) lies before the threshold. Entering it from below snaps the content to the threshold.
+    // Once the pointer has reached the threshold, the snap holds until it crosses back below it, and the content
+    // then snaps back to the zone's edge. If the pointer never reached the threshold, the snap holds until the
+    // pointer retreats below the zone's entry. It cannot re-snap until the pointer leaves the zone below.
+    const at = this.#dismissAt(side);
+    const zone = at - SNAP_ZONE * this.#getContentWidth();
+
+    if (distance < zone) this.#released = false;
+
+    if (this.#armed) {
+      this.#reached ||= distance >= at;
+      if (distance < (this.#reached ? at : zone)) {
+        this.#setArmed(false);
+        this.#released = true;
+      }
+    } else if (distance >= at || (!this.#released && distance >= zone)) {
+      this.#setArmed(true);
+      this.#released = false;
+      this.#reached = distance >= at;
+    }
+
+    let visual = distance;
+    if (this.#armed) visual = Math.max(at, distance);
+    else if (this.#released) visual = Math.min(distance, zone);
+
+    return Math.min(visual, this.#getContentWidth() || visual);
   }
 
   /** @private */
@@ -974,7 +1051,8 @@ export class M3eSwipeRevealElement extends SupportsDirectionality(AttachInternal
     if (content.matches(":popover-open")) return;
 
     // Promote the content to the top layer so that it is not clipped by ancestor overflow.
-    const bounds = content.getBoundingClientRect();
+    const bounds = this.#startBounds ?? content.getBoundingClientRect();
+    this.#startBounds = null;
     placeholder.style.height = `${bounds.height}px`;
     content.style.width = `${bounds.width}px`;
     content.style.height = `${bounds.height}px`;
@@ -1015,16 +1093,33 @@ export class M3eSwipeRevealElement extends SupportsDirectionality(AttachInternal
 
     // Keep top-layer elements aligned every frame while any are promoted.
     const content = this._content;
+    // While dragging, placeholders only move on scroll or resize, so measuring them every frame would force a
+    // reflow right after the drag's style writes.
+    // Promotion has just positioned everything from fresh measurements, so the first frame needs no sync.
+    let dirty = false;
+    const markDirty = () => (dirty = true);
+    window.addEventListener("scroll", markDirty, { capture: true, passive: true });
+    window.addEventListener("resize", markDirty, { passive: true });
+
+    const stop = () => {
+      this.#tracking = 0;
+      window.removeEventListener("scroll", markDirty, { capture: true });
+      window.removeEventListener("resize", markDirty);
+    };
+
     const tick = () => {
       if (
         !this.isConnected ||
         this._state === "dismissed" ||
         !(content?.matches(":popover-open") || this.#staggered.length > 0)
       ) {
-        this.#tracking = 0;
+        stop();
         return;
       }
-      this.#sync();
+      if (!this.#dragging || dirty) {
+        dirty = false;
+        this.#sync();
+      }
       this.#tracking = requestAnimationFrame(tick);
     };
     this.#tracking = requestAnimationFrame(tick);
@@ -1084,14 +1179,15 @@ export class M3eSwipeRevealElement extends SupportsDirectionality(AttachInternal
     }
 
     // Measure everything before promoting anything (promotion changes layout).
-    const snapshots = targets.map(({ el }) => this.#measure(el));
+    const snapshots = targets.map(({ el }) => this.#snapshots.get(el) ?? this.#measure(el));
+    this.#snapshots.clear();
     targets.forEach(({ el, distance }, i) => this.#promoteSibling(el, distance, list, this.#x, snapshots[i]));
 
     this.#track();
   }
 
   /** @private */
-  #measure(el: HTMLElement) {
+  #measure(el: HTMLElement): SiblingSnapshot {
     const cs = getComputedStyle(el);
     const styles: Record<string, string> = {};
 
@@ -1149,7 +1245,13 @@ export class M3eSwipeRevealElement extends SupportsDirectionality(AttachInternal
   #actionWidth(name: SwipeRevealSide): number {
     // The actions' natural width, which stays stable while buttons grow or shrink during a drag.
     const container = this.shadowRoot?.querySelector<HTMLElement>(`.${name}`);
-    return Math.max(0, (this.#actionWidths.get(name) ?? container?.offsetWidth ?? 0) - this.#underlap(name));
+    let width = this.#actionWidths.get(name);
+    if (width === undefined) {
+      // Sides without locked actions are cached too, so drag updates never measure layout.
+      width = this.#fallbackWidths.get(name);
+      if (width === undefined) this.#fallbackWidths.set(name, (width = container?.offsetWidth ?? 0));
+    }
+    return Math.max(0, width - this.#underlap(name));
   }
 
   /** @private */
@@ -1158,7 +1260,17 @@ export class M3eSwipeRevealElement extends SupportsDirectionality(AttachInternal
     // beneath the content, which is not part of the reveal distance.
     const container = this.shadowRoot?.querySelector<HTMLElement>(`.${name}`);
     if (!container) return 0;
-    return parseFloat(getComputedStyle(container)[name === "leading" ? "marginInlineEnd" : "marginInlineStart"]) || 0;
+    const cached = this.#underlaps.get(name);
+    if (cached !== undefined) return cached;
+    const value =
+      parseFloat(getComputedStyle(container)[name === "leading" ? "marginInlineEnd" : "marginInlineStart"]) || 0;
+    this.#underlaps.set(name, value);
+    return value;
+  }
+
+  /** @private */
+  #getContentWidth(): number {
+    return (this.#contentWidth ??= this._content?.offsetWidth ?? 0);
   }
 
   /** @private */
@@ -1174,17 +1286,43 @@ export class M3eSwipeRevealElement extends SupportsDirectionality(AttachInternal
   }
 
   /** @private */
-  #lockActions(): void {
-    // Freeze the actions' size, then squish slotted buttons using their `--squished` state.
-    // The container width is frozen so squishing doesn't shrink the distance the content can be dragged.
+  #measureActions() {
+    // Reads only, so it can run before any of the drag's style writes.
+    const result = new Map<SwipeRevealSide, ActionMeasure>();
 
     for (const name of ["leading", "trailing"] as const) {
       const container = this.shadowRoot?.querySelector<HTMLElement>(`.${name}`);
       if (!container || container.style.width) continue;
 
-      const slot = container.querySelector("slot");
-      const width = container.getBoundingClientRect().width;
-      const assigned = slot?.assignedElements({ flatten: true }) ?? [];
+      const assigned = container.querySelector("slot")?.assignedElements({ flatten: true }) ?? [];
+      const widths = new Map<HTMLElement, number>();
+
+      if (this.#isElastic(name)) {
+        const buttons = assigned.flatMap((x) => [x, ...x.querySelectorAll("m3e-button, m3e-icon-button")]);
+        for (const button of buttons) {
+          if (!(button instanceof HTMLElement) || !/^m3e-(icon-)?button$/.test(button.localName)) continue;
+          if (this.#squished.has(button) || button.style.getPropertyValue("--_button-width")) continue;
+          widths.set(button, button.getBoundingClientRect().width);
+        }
+      }
+
+      result.set(name, { width: container.getBoundingClientRect().width, assigned, widths });
+    }
+
+    return result;
+  }
+
+  /** @private */
+  #lockActions(): void {
+    // Freeze the actions' size, then squish slotted buttons using their `--squished` state.
+    // The container width is frozen so squishing doesn't shrink the distance the content can be dragged.
+
+    const measured = this.#measuredActions ?? this.#measureActions();
+    this.#measuredActions = null;
+
+    for (const [name, { width, assigned, widths }] of measured) {
+      const container = this.shadowRoot?.querySelector<HTMLElement>(`.${name}`);
+      if (!container || container.style.width) continue;
 
       if (width > 0) {
         container.style.width = `${width}px`;
@@ -1193,14 +1331,11 @@ export class M3eSwipeRevealElement extends SupportsDirectionality(AttachInternal
 
       if (!this.#isElastic(name)) continue;
 
-      const buttons = assigned.flatMap((x) => [x, ...x.querySelectorAll("m3e-button, m3e-icon-button")]);
-
-      for (const button of buttons) {
-        if (!(button instanceof HTMLElement) || !/^m3e-(icon-)?button$/.test(button.localName)) continue;
+      for (const [button, natural] of widths) {
         if (this.#squished.has(button) || button.style.getPropertyValue("--_button-width")) continue;
 
         // Measured before the state is applied, so this is the button's natural width.
-        button.style.setProperty("--_button-width", `${button.getBoundingClientRect().width}px`);
+        button.style.setProperty("--_button-width", `${natural}px`);
 
         addCustomState(button as HTMLElement & AttachInternalsMixin, "--squished");
         this.#squished.add(button);
@@ -1231,6 +1366,9 @@ export class M3eSwipeRevealElement extends SupportsDirectionality(AttachInternal
 
     this.#squished.clear();
     this.#actionWidths.clear();
+    this.#underlaps.clear();
+    this.#fallbackWidths.clear();
+    this.#contentWidth = undefined;
 
     for (const name of ["leading", "trailing"]) {
       this.shadowRoot?.querySelector<HTMLElement>(`.${name}`)?.style.removeProperty("width");
@@ -1241,6 +1379,9 @@ export class M3eSwipeRevealElement extends SupportsDirectionality(AttachInternal
   #setProgress(x: number, animate: boolean): void {
     // Drive the actions' fade, clip and scale from how far the content has uncovered them.
     const motion = animate ? `${DesignToken.motion.spring.fastSpatial}` : "0s";
+    // Shape growth only applies while dragging.
+    if (animate || !this.#dragging) this.style.removeProperty(SHAPE_GROWTH);
+    else this.style.setProperty(SHAPE_GROWTH, this.#shapeGrowth(this.#progressOf(x)));
 
     for (const [name, sign] of [
       ["leading", 1],
@@ -1252,6 +1393,7 @@ export class M3eSwipeRevealElement extends SupportsDirectionality(AttachInternal
       const natural = this.#actionWidth(name);
       const ratio = (sign * this.#dir * x) / (natural || Infinity);
       const progress = Math.max(0, Math.min(1, ratio));
+      el.inert = ratio <= 0;
 
       // Past 1, buttons grow with the overshoot, and the container grows to hold them.
       const squish = this.#isElastic(name) ? Math.max(0, ratio) : progress;
@@ -1276,10 +1418,72 @@ export class M3eSwipeRevealElement extends SupportsDirectionality(AttachInternal
   }
 
   /** @private */
-  #applyStagger(x: number): void {
+  #progressOf(x: number): number {
+    // Growth reaches its maximum at half the item's width, or at the dismiss threshold when dismissible.
+    const side: SwipeRevealSide = x * this.#dir > 0 ? "leading" : "trailing";
+    const reach = this.#canDismiss(side) ? this.#dismissAt(side) : this.#getContentWidth() * 0.5;
+    return Math.min(1, Math.abs(x) / (reach || Infinity));
+  }
+
+  /** @private */
+  #shapeGrowth(progress: number): string {
+    return `calc(${DesignToken.shape.corner.value.large} * ${progress})`;
+  }
+
+  /** @private */
+  #renderDrag(): void {
+    const content = this._content;
+    if (!content) return;
+
+    const t = Math.min(1, (performance.now() - this.#snapStart) / SNAP_DURATION);
+    const x = this.#x + this.#snapOffset * Math.pow(1 - t, 3);
+    this.#shown = x;
+
+    content.style.transform = `translateX(${x}px)`;
+    this.#setProgress(x, false);
+    // Stagger is removed while armed for dismissal and restored when the drag leaves the threshold.
+    this.#applyStagger(this.#armed ? 0 : x, this.#armed || this.#inSnapZone(x));
+  }
+
+  /** @private */
+  #animateSnap(): void {
+    cancelAnimationFrame(this.#snapFrame);
+
+    const step = () => {
+      this.#renderDrag();
+      if (performance.now() - this.#snapStart < SNAP_DURATION) {
+        this.#snapFrame = requestAnimationFrame(step);
+      } else {
+        this.#snapOffset = 0;
+      }
+    };
+
+    this.#snapFrame = requestAnimationFrame(step);
+  }
+
+  /** @private */
+  #stopSnap(): void {
+    cancelAnimationFrame(this.#snapFrame);
+    this.#snapOffset = 0;
+  }
+
+  /** @private */
+  #inSnapZone(x: number): boolean {
+    const side: SwipeRevealSide = x * this.#dir > 0 ? "leading" : "trailing";
+    return (
+      x !== 0 &&
+      this.#canDismiss(side) &&
+      Math.abs(x) > this.#dismissAt(side) - SNAP_ZONE * 1.5 * this.#getContentWidth()
+    );
+  }
+
+  /** @private */
+  #applyStagger(x: number, animate = false): void {
     for (const { el, distance, spacer } of this.#staggered) {
       const offset = this.#staggerOffset(x, distance);
+      el.style.setProperty(SHAPE_GROWTH, this.#shapeGrowth(this.#staggerOffset(this.#progressOf(x), distance)));
       if (spacer) {
+        el.style.transition = animate ? `transform ${DesignToken.motion.spring.fastEffects}` : "none";
         el.style.transform = `translateX(${offset}px)`;
       } else {
         (el as M3eSwipeRevealElement).#nudge(offset, true);
@@ -1297,6 +1501,9 @@ export class M3eSwipeRevealElement extends SupportsDirectionality(AttachInternal
     // Spring staggered siblings back to rest and releases them (only lasts while dragging).
     const staggered = this.#staggered;
     if (staggered.length === 0) return;
+
+    // Growth ends with the drag, so corners relax as siblings spring back.
+    for (const { el } of staggered) el.style.removeProperty(SHAPE_GROWTH);
 
     let timer = 0;
 
