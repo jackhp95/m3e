@@ -1,3 +1,5 @@
+import type { Page } from "@playwright/test";
+
 import { expect, test } from "./fixtures";
 
 test.describe("m3e-drawer-container", () => {
@@ -149,5 +151,97 @@ test.describe("m3e-drawer-container", () => {
 
     await expect(container).toHaveAttribute("start-mode", "side");
     await expect(container).toHaveAttribute("end-mode", "side");
+  });
+  const escapeContainer = (attrs: string) => `
+    <m3e-drawer-container ${attrs} style="height: 200px">
+      <nav slot="end"><button id="inside">Inside</button></nav>
+      <main>Main</main>
+    </m3e-drawer-container>
+  `;
+
+  const countChanges = (page: Page) =>
+    page.evaluate(() => (window as unknown as { escapeChanges: number }).escapeChanges);
+
+  const watchChanges = (page: Page) =>
+    page.evaluate(() => {
+      (window as unknown as { escapeChanges: number }).escapeChanges = 0;
+      document.querySelector("m3e-drawer-container")!.addEventListener("change", () => {
+        (window as unknown as { escapeChanges: number }).escapeChanges += 1;
+      });
+    });
+
+  for (const mode of ["over", "push"]) {
+    test(`Escape closes an open ${mode} drawer and dispatches change`, async ({ page, render }) => {
+      await render(escapeContainer(`end end-mode="${mode}"`));
+      const container = page.locator("m3e-drawer-container");
+      await watchChanges(page);
+
+      await page.locator("#inside").focus();
+      await page.keyboard.press("Escape");
+
+      await expect(container).not.toHaveAttribute("end");
+      expect(await countChanges(page)).toBe(1);
+    });
+  }
+
+  test("Escape leaves a side drawer open", async ({ page, render }) => {
+    await render(escapeContainer('end end-mode="side"'));
+    const container = page.locator("m3e-drawer-container");
+    await watchChanges(page);
+
+    await page.locator("#inside").focus();
+    await page.keyboard.press("Escape");
+
+    await expect(container).toHaveAttribute("end", "");
+    expect(await countChanges(page)).toBe(0);
+  });
+
+  test("Escape with a modifier key is ignored", async ({ page, render }) => {
+    await render(escapeContainer('end end-mode="over"'));
+    const container = page.locator("m3e-drawer-container");
+
+    await page.locator("#inside").focus();
+    await page.keyboard.press("Shift+Escape");
+
+    await expect(container).toHaveAttribute("end", "");
+  });
+
+  test("Escape that a child already handled is ignored", async ({ page, render }) => {
+    await render(escapeContainer('end end-mode="over"'));
+    const container = page.locator("m3e-drawer-container");
+    await page.evaluate(() =>
+      document.querySelector("#inside")!.addEventListener("keydown", (e) => e.preventDefault()),
+    );
+
+    await page.locator("#inside").focus();
+    await page.keyboard.press("Escape");
+
+    await expect(container).toHaveAttribute("end", "");
+  });
+
+  test("Escape in an open menu closes the menu first, then the drawer", async ({ page, render }) => {
+    await render(`
+      <m3e-drawer-container end end-mode="over" style="height: 300px">
+        <nav slot="end">
+          <m3e-button><m3e-menu-trigger for="menu">Open</m3e-menu-trigger></m3e-button>
+          <m3e-menu id="menu"><m3e-menu-item>Apple</m3e-menu-item></m3e-menu>
+        </nav>
+        <main>Main</main>
+      </m3e-drawer-container>
+    `);
+    const container = page.locator("m3e-drawer-container");
+    const menu = page.getByRole("menu");
+
+    await page.locator("m3e-button").click();
+    await expect(menu).toBeVisible();
+    await page.getByRole("menuitem", { name: "Apple" }).focus();
+
+    await page.keyboard.press("Escape");
+    await expect(menu).toBeHidden();
+    await expect(container).toHaveAttribute("end", "");
+
+    await page.locator("m3e-button").focus();
+    await page.keyboard.press("Escape");
+    await expect(container).not.toHaveAttribute("end");
   });
 });
