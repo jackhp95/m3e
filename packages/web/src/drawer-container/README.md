@@ -59,6 +59,15 @@ Use `end-divider` to show a divider for a side-mode drawer.
 </m3e-drawer-container>
 ```
 
+Use `no-containment` when popups opened from the content or a drawer, such as dialogs positioned with `position: fixed`, must position against the viewport instead of the scrolled container.
+
+```html
+<m3e-drawer-container start no-containment>
+  <div slot="start">Start drawer</div>
+  <div>Main content</div>
+</m3e-drawer-container>
+```
+
 Nest a drawer toggle in a clickable element and connect `for` to the drawer's id. Import `@m3e/web/icon-button` and `@m3e/web/icon` for the button and icons; place the button in an element that supports its `leading-icon` slot.
 
 ```html
@@ -89,14 +98,15 @@ This section details the attributes and CSS custom properties available for the 
 
 ### ⚙️ Attributes
 
-| Attribute       | Type                                   | Default  | Description                                                                               |
-| --------------- | -------------------------------------- | -------- | ----------------------------------------------------------------------------------------- |
-| `start`         | `boolean`                              | `false`  | Whether the start drawer is open.                                                         |
-| `start-mode`    | `"over" \| "push" \| "side" \| "auto"` | `"side"` | The behavior mode of the start drawer. Supports `over`, `push`, `side`, and `auto` modes. |
-| `start-divider` | `boolean`                              | `false`  | Whether to show a divider between the start drawer and content for `side` mode.           |
-| `end`           | `boolean`                              | `false`  | Whether the end drawer is open.                                                           |
-| `end-mode`      | `"over" \| "push" \| "side" \| "auto"` | `"side"` | The behavior mode of the end drawer. Supports `over`, `push`, `side`, and `auto` modes.   |
-| `end-divider`   | `boolean`                              | `false`  | Whether to show a divider between the end drawer and content for `side` mode.             |
+| Attribute        | Type                                   | Default  | Description                                                                               |
+| ---------------- | -------------------------------------- | -------- | ----------------------------------------------------------------------------------------- |
+| `start`          | `boolean`                              | `false`  | Whether the start drawer is open.                                                         |
+| `start-mode`     | `"over" \| "push" \| "side" \| "auto"` | `"side"` | The behavior mode of the start drawer. Supports `over`, `push`, `side`, and `auto` modes. |
+| `start-divider`  | `boolean`                              | `false`  | Whether to show a divider between the start drawer and content for `side` mode.           |
+| `end`            | `boolean`                              | `false`  | Whether the end drawer is open.                                                           |
+| `end-mode`       | `"over" \| "push" \| "side" \| "auto"` | `"side"` | The behavior mode of the end drawer. Supports `over`, `push`, `side`, and `auto` modes.   |
+| `end-divider`    | `boolean`                              | `false`  | Whether to show a divider between the end drawer and content for `side` mode.             |
+| `no-containment` | `boolean`                              | `false`  | Whether fixed-position descendants, such as popups, position against the viewport.        |
 
 ### 🧩 Slots
 

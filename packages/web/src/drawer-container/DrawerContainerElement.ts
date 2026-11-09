@@ -116,6 +116,7 @@ import { DrawerContainerStyle } from "./styles";
  * @attr end - Whether the end drawer is open.
  * @attr end-mode - The behavior mode of the end drawer.
  * @attr end-divider - Whether to show a divider between the end drawer and content for `side` mode.
+ * @attr no-containment - Whether fixed-position descendants, such as popups, position against the viewport.
  * @attr start - Whether the start drawer is open.
  * @attr start-mode - The behavior mode of the start drawer.
  * @attr start-divider - Whether to show a divider between the start drawer and content for `side` mode.
@@ -188,6 +189,12 @@ export class M3eDrawerContainerElement extends SupportsDirectionality(
    * @default "side"
    */
   @property({ attribute: "end-divider", type: Boolean, reflect: true }) endDivider = false;
+
+  /**
+   * Whether fixed-position descendants, such as popups, position against the viewport.
+   * @default false
+   */
+  @property({ attribute: "no-containment", type: Boolean, reflect: true }) noContainment = false;
 
   /** @inheritdoc */
   override connectedCallback(): void {

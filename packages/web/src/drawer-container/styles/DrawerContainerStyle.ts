@@ -183,6 +183,11 @@ export const DrawerContainerStyle: CSSResultGroup = css`
     .end {
     border-inline-start-color: ${DrawerContainerToken.dividerColor};
   }
+  :host([no-containment]) .start,
+  :host([no-containment]) .end,
+  :host([no-containment]) .content {
+    contain: style;
+  }
   :host(:is(:state(--no-animate), :--no-animate)) .start,
   :host(:is(:state(--no-animate), :--no-animate)) .end,
   :host(:is(:state(--no-animate), :--no-animate)) .content {

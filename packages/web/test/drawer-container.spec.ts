@@ -1,3 +1,5 @@
+import type { Page } from "@playwright/test";
+
 import { expect, test } from "./fixtures";
 
 test.describe("m3e-drawer-container", () => {
@@ -149,5 +151,43 @@ test.describe("m3e-drawer-container", () => {
 
     await expect(container).toHaveAttribute("start-mode", "side");
     await expect(container).toHaveAttribute("end-mode", "side");
+  });
+
+  const scrolledContainer = (attrs: string) => `
+    <m3e-drawer-container ${attrs} style="height: 200px">
+      <nav slot="start">Navigation</nav>
+      <main>
+        <div style="height: 1000px">Tall content</div>
+        <div id="popup" style="position: fixed; top: 0; left: 0; width: 50px; height: 20px">Popup</div>
+      </main>
+    </m3e-drawer-container>
+  `;
+
+  const popupViewportTop = (page: Page) =>
+    page.evaluate(() => {
+      const container = document.querySelector("m3e-drawer-container")!;
+      container.shadowRoot!.querySelector(".content")!.scrollTop = 400;
+      return document.querySelector("#popup")!.getBoundingClientRect().top;
+    });
+
+  test("keeps fixed-position descendants inside the scrolled content by default", async ({ page, render }) => {
+    await render(scrolledContainer("start"));
+
+    expect(await popupViewportTop(page)).toBeLessThan(0);
+  });
+
+  test("no-containment positions fixed-position descendants against the viewport", async ({ page, render }) => {
+    await render(scrolledContainer("start no-containment"));
+
+    expect(await popupViewportTop(page)).toBe(0);
+  });
+
+  test("no-containment reflects to the attribute and defaults to false", async ({ page, render }) => {
+    await render(scrolledContainer("start"));
+    const container = page.locator("m3e-drawer-container");
+
+    await expect(container).not.toHaveAttribute("no-containment");
+    await container.evaluate((el: HTMLElement & { noContainment: boolean }) => (el.noContainment = true));
+    await expect(container).toHaveAttribute("no-containment", "");
   });
 });
