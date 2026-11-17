@@ -71,7 +71,7 @@ Showcase: Disabling. Import `@m3e/web/tabs`. Also import `@m3e/web/icon`. Load a
 </m3e-tabs>
 ```
 
-Showcase: Badge. Import `@m3e/web/tabs`. Also import `@m3e/web/badge`.
+Showcase: Badge. Import `@m3e/web/tabs`. Also import `@m3e/web/badge`. The `badge` slot places a large badge after the label. To badge the corner of the icon on a primary tab with a stacked icon, use `<m3e-badge for="…">` instead.
 
 ```html
 <m3e-tabs>
