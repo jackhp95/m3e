@@ -228,6 +228,26 @@ test.describe("m3e-tabs", () => {
       await expect(page.locator("m3e-tab").nth(1).locator("a")).toHaveAttribute("href", `${origin}/photos`);
     });
 
+    test("the selected link tab is the current page, and only while selected", async ({ page, render }) => {
+      await render(linkTabs());
+      const videos = page.getByRole("tab", { name: "Videos" });
+      const photos = page.getByRole("tab", { name: "Photos" });
+
+      await expect(videos).toHaveAttribute("aria-current", "page");
+      await expect(photos).not.toHaveAttribute("aria-current");
+
+      await photos.evaluate((el) => ((el as HTMLElement & { selected: boolean }).selected = true));
+
+      await expect(photos).toHaveAttribute("aria-current", "page");
+      await expect(videos).not.toHaveAttribute("aria-current");
+    });
+
+    test("a selected tab without an href is not marked as the current page", async ({ page, render }) => {
+      await render(tabs("", ["selected", "", ""]));
+
+      await expect(page.getByRole("tab", { name: "Videos" })).not.toHaveAttribute("aria-current");
+    });
+
     test("a plain click navigates the current tab", async ({ page, render }) => {
       await render(linkTabs());
 

@@ -71,14 +71,16 @@ Showcase: Disabling. Import `@m3e/web/tabs`. Also import `@m3e/web/icon`. Load a
 </m3e-tabs>
 ```
 
-Showcase: Links. Import `@m3e/web/tabs`. A tab with an `href` is a link: it opens in a new tab or window, copies its address and honors modifier-clicks natively. Clicking a link tab does not select it, so set `selected` on the tab for the current page.
+Showcase: Links. Import `@m3e/web/tabs`. A tab with an `href` is a link: it opens in a new tab or window, copies its address and honors modifier-clicks natively. Clicking a link tab does not select it, so set `selected` on the tab for the current page, which is also exposed as `aria-current="page"`. Wrap the tabs in a labelled `nav`, and where the current page's content is available, place it in an `m3e-tab-panel` referenced by the selected tab's `for`.
 
 ```html
-<m3e-tabs>
-  <m3e-tab selected href="/videos">Video</m3e-tab>
-  <m3e-tab href="/photos">Photos</m3e-tab>
-  <!-- Additional content omitted for brevity -->
-</m3e-tabs>
+<nav aria-label="Media">
+  <m3e-tabs>
+    <m3e-tab selected href="/videos">Video</m3e-tab>
+    <m3e-tab href="/photos">Photos</m3e-tab>
+    <!-- Additional content omitted for brevity -->
+  </m3e-tabs>
+</nav>
 ```
 
 Showcase: Density. Import `@m3e/web/tabs`. Apply the required styling for the illustrated classes in your application.

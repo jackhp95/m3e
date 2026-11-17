@@ -65,14 +65,16 @@ import { addAriaReferencedId, removeAriaReferencedId, selectionManager } from "@
  * ```
  *
  * @example
- * Showcase: Links. Import `@m3e/web/tabs`. A tab with an `href` is a link: it opens in a new tab or window, copies its address and honors modifier-clicks natively. Clicking a link tab does not select it, so set `selected` on the tab for the current page.
+ * Showcase: Links. Import `@m3e/web/tabs`. A tab with an `href` is a link: it opens in a new tab or window, copies its address and honors modifier-clicks natively. Clicking a link tab does not select it, so set `selected` on the tab for the current page, which is also exposed as `aria-current="page"`. Wrap the tabs in a labelled `nav`, and where the current page's content is available, place it in an `m3e-tab-panel` referenced by the selected tab's `for`.
  *
  * ```html
- * <m3e-tabs>
- *   <m3e-tab selected href="/videos">Video</m3e-tab>
- *   <m3e-tab href="/photos">Photos</m3e-tab>
- *   <!-- Additional content omitted for brevity -->
- * </m3e-tabs>
+ * <nav aria-label="Media">
+ *   <m3e-tabs>
+ *     <m3e-tab selected href="/videos">Video</m3e-tab>
+ *     <m3e-tab href="/photos">Photos</m3e-tab>
+ *     <!-- Additional content omitted for brevity -->
+ *   </m3e-tabs>
+ * </nav>
  * ```
  *
  * @tag m3e-tab
@@ -271,6 +273,10 @@ export class M3eTabElement extends LinkButton(
   /** @inheritdoc */
   protected override update(changedProperties: PropertyValues<this>): void {
     super.update(changedProperties);
+
+    if (changedProperties.has("selected") || changedProperties.has("href")) {
+      this.ariaCurrent = this.href && this.selected ? "page" : null;
+    }
 
     if (changedProperties.has("selected")) {
       this.closest("m3e-tabs")?.[selectionManager].notifySelectionChange(this);
