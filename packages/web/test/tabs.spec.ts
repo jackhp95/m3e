@@ -287,6 +287,53 @@ test.describe("m3e-tabs", () => {
       expect(Math.abs(plain - badged)).toBeLessThanOrEqual(0.5);
     });
 
+    const geometry = (page: Page, name: string | RegExp) =>
+      page.getByRole("tab", { name }).evaluate((tab) => {
+        const text = [...tab.childNodes].find((n) => n.nodeType === Node.TEXT_NODE)!;
+        const range = document.createRange();
+        range.selectNodeContents(text);
+        const label = range.getBoundingClientRect();
+        const outer = tab.querySelector("m3e-badge")!.shadowRoot!.querySelector(".outer")!;
+        const badge = outer.getBoundingClientRect();
+        const style = getComputedStyle(outer);
+        return {
+          gap: badge.left - label.right,
+          centerOffset: (badge.top + badge.bottom) / 2 - (label.top + label.bottom) / 2,
+          width: badge.width,
+          height: badge.height,
+          fontSize: style.fontSize,
+          paddingInline: [style.paddingLeft, style.paddingRight],
+        };
+      });
+
+    test("the badge matches the Material spec for tabs", async ({ page, render }) => {
+      await render(`
+        <m3e-tabs style="width: 480px">
+          <m3e-tab for="s1" selected>Overview<m3e-badge slot="badge">3</m3e-badge></m3e-tab>
+          <m3e-tab for="s2">Favorites<m3e-badge slot="badge" size="large">84</m3e-badge></m3e-tab>
+          <m3e-tab for="s3">Inbox<m3e-badge slot="badge" size="small"></m3e-badge></m3e-tab>
+          <m3e-tab-panel id="s1"></m3e-tab-panel>
+          <m3e-tab-panel id="s2"></m3e-tab-panel>
+          <m3e-tab-panel id="s3"></m3e-tab-panel>
+        </m3e-tabs>
+      `);
+
+      for (const name of [/Overview/, /Favorites/]) {
+        const badge = await geometry(page, name);
+        expect(badge.height).toBe(16);
+        expect(badge.width).toBeGreaterThanOrEqual(16);
+        expect(badge.gap).toBeCloseTo(4, 1);
+        expect(Math.abs(badge.centerOffset)).toBeLessThanOrEqual(0.5);
+        expect(badge.fontSize).toBe("11px");
+        expect(badge.paddingInline).toEqual(["4px", "4px"]);
+      }
+
+      const dot = await geometry(page, /Inbox/);
+      expect([dot.width, dot.height]).toEqual([6, 6]);
+      expect(dot.gap).toBeCloseTo(4, 1);
+      expect(Math.abs(dot.centerOffset)).toBeLessThanOrEqual(0.5);
+    });
+
     test("the badge is part of the tab's accessible name", async ({ page, render }) => {
       await render(withBadge("secondary"));
 

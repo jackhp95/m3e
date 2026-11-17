@@ -106,8 +106,10 @@ import { addAriaReferencedId, removeAriaReferencedId, selectionManager } from "@
  * @cssprop --m3e-tab-unselected-ripple-color - Ripple color for unselected tab.
  * @cssprop --m3e-tab-disabled-color - Text color for disabled tab.
  * @cssprop --m3e-tab-disabled-opacity - Text opacity for disabled tab.
- * @cssprop --m3e-tab-spacing - Gap between icon, label and badge.
+ * @cssprop --m3e-tab-spacing - Column gap between icon and label.
  * @cssprop --m3e-tab-icon-size - Font size for slotted icon.
+ * @cssprop --m3e-tab-badge-spacing - Gap between label and slotted badge.
+ * @cssprop --m3e-tab-badge-size - Height and min-width for slotted badge.
  */
 @customElement("m3e-tab")
 export class M3eTabElement extends Selected(
@@ -199,10 +201,21 @@ export class M3eTabElement extends Selected(
       width: 1em;
       font-size: var(--m3e-tab-icon-size, 24px) !important;
     }
+    .label {
+      display: inline-flex;
+      align-items: center;
+      column-gap: var(--m3e-tab-badge-spacing, ${DesignToken.measurement.space50});
+    }
     ::slotted([slot="badge"]) {
-      vertical-align: middle;
-      margin-block: -1em;
-      margin-inline-start: var(--m3e-tab-spacing, ${DesignToken.measurement.space100});
+      --m3e-badge-medium-size: var(--m3e-tab-badge-size, 16px);
+      --m3e-badge-large-size: var(--m3e-tab-badge-size, 16px);
+      --m3e-badge-large-font-size: ${DesignToken.typescale.standard.label.small.fontSize};
+      --m3e-badge-large-font-weight: ${DesignToken.typescale.standard.label.small.fontWeight};
+      --m3e-badge-large-line-height: ${DesignToken.typescale.standard.label.small.lineHeight};
+      --m3e-badge-large-tracking: ${DesignToken.typescale.standard.label.small.tracking};
+    }
+    ::slotted([slot="badge"]:not([size="small"])) {
+      --_badge-padding: 0 ${DesignToken.measurement.space50};
     }
     @media (forced-colors: active) {
       :host([selected]:not(:disabled)) .base {
@@ -279,7 +292,7 @@ export class M3eTabElement extends Selected(
       <m3e-ripple class="ripple" ?disabled="${this.disabled}"></m3e-ripple>
       <div class="touch" aria-hidden="true"></div>
       <div class="wrapper">
-        <slot name="icon" aria-hidden="true"></slot><span class="label"><slot></slot><slot name="badge"></slot></span>
+        <slot name="icon" aria-hidden="true"></slot><span class="label"><span><slot></slot></span><slot name="badge"></slot></span>
       </div>
     </div>`;
   }
